@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head><title>webclient</title>
+<script type="text/javascript" src="/modfiles/webclient/events.js"></script>
+<script type="text/javascript">
+var nick = "<? VAR Nick ?>";
+var servers = [
+<?LOOP ServerLoop ?>
+"<? VAR Server ?>",
+<?ENDLOOP?>
+];
+</script>
+</head>
+<body><h1>webclient</h1>
+<div id="d"></div>
+</body>
+</html>
