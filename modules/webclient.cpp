@@ -13,10 +13,12 @@
 #include "User.h"
 #include "znc.h"
 #include "WebModules.h"
+#include <list>
 #include <map>
 #include <sstream>
 #include <vector>
 
+using std::list;
 using std::map;
 using std::stringstream;
 using std::vector;
@@ -35,10 +37,27 @@ private:
   CWebClientMod* m_pModule;
 };
 
+static CString ChanList(const vector<CChan*>& vChans) {
+  CString s;
+  for (unsigned int i = 0; i < vChans.size(); i++) {
+    s += vChans[i]->GetName();
+    if (i != vChans.size() - 1)
+      s += ",";
+  }
+  return s;
+}
+
+const unsigned int kMaxEventQueue = 50;
+
 class CWebClientMod : public CModule {
 private:
   typedef map<CString,CString> EventMap;
   vector<CEventSock*> m_sockets;
+
+  // Save a buffer of events in case a client gets disconnected.
+  unsigned int m_nextID;
+  typedef list<pair<unsigned int, string> > EventList;
+  EventList m_events;
 
   void SendEvent(const CString& event, const EventMap& data) {
     if (m_sockets.size() == 0)
@@ -46,14 +65,27 @@ private:
 
     stringstream s;
     s << "event: " << event << "\n"
+      << "id: " << m_nextID << "\n"
       << "data: {";
     // Horrible JSON serialization;
-    for (EventMap::iterator it = data.begin();
+    size_t count = data.size();
+    for (EventMap::const_iterator it = data.begin();
          it != data.end();
-         it++) {
-      s << "\"" << it->first << "\"";
+         it++, count--) {
+      s << "\"" << it->first.Replace_n("\"", "\\\"")
+        << "\": \""<< it->second.Replace_n("\"", "\\\"") << "\"";
+      if (count > 1)
+        s << ",";
     }
-    s "}\n\n";
+    s << "}\n\n";
+
+    m_events.push_back(make_pair(m_nextID, s.str()));
+    m_nextID++;
+
+    while (m_events.size() > kMaxEventQueue) {
+      m_events.pop_front();
+    }
+
     for (unsigned int i=0; i<m_sockets.size(); i++) {
       m_sockets[i]->Write(s.str());
     }
@@ -61,8 +93,8 @@ private:
 
 public:
 	MODCONSTRUCTOR(CWebClientMod) {
+		m_nextID = 0;
 		AddHelpCommand();
-		//AddCommand("List",   static_cast<CModCommand::ModCmdFunc>(&CWebClientMod::ListCommand));
 	}
 
 	virtual ~CWebClientMod() {}
@@ -89,29 +121,66 @@ public:
 		return CONTINUE;
 	}
 
-	virtual void OnClientLogin() {
-	}
-
 	virtual void OnChanPermission(const CNick& OpNick, const CNick& Nick, CChan& Channel, unsigned char uMode, bool bAdded, bool bNoChange) {
         }
 
 	virtual void OnOp(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["op"] = OpNick.GetNickMask();
+          m["nick"] = Nick.GetNickMask();
+          m["opped"] = "true";
+          m["channel"] = Channel.GetName();
+          SendEvent("op", m);
         }
 
 	virtual void OnDeop(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
-		PutModule(((bNoChange) ? "[0] [" : "[1] [") + OpNick.GetNick() + "] deopped [" + Nick.GetNick() + "] on [" + Channel.GetName() + "]");
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["op"] = OpNick.GetNickMask();
+          m["nick"] = Nick.GetNickMask();
+          m["opped"] = "false";
+          m["channel"] = Channel.GetName();
+          SendEvent("op", m);
 	}
 
 	virtual void OnVoice(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["op"] = OpNick.GetNickMask();
+          m["nick"] = Nick.GetNickMask();
+          m["voiced"] = "true";
+          m["channel"] = Channel.GetName();
+          SendEvent("voice", m);
         }
 
 	virtual void OnDevoice(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["op"] = OpNick.GetNickMask();
+          m["nick"] = Nick.GetNickMask();
+          m["voiced"] = "false";
+          m["channel"] = Channel.GetName();
+          SendEvent("voice", m);
         }
 
 	virtual void OnKick(const CNick& OpNick, const CString& sKickedNick, CChan& Channel, const CString& sMessage) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["op"] = OpNick.GetNickMask();
+          m["nick"] = sKickedNick;
+          m["channel"] = Channel.GetName();
+          m["msg"] = sMessage;
+          SendEvent("kick", m);
         }
 
 	virtual void OnQuit(const CNick& Nick, const CString& sMessage, const vector<CChan*>& vChans) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["user"] = Nick.GetNickMask();
+          m["channels"] = ChanList(vChans);
+          m["msg"] = sMessage;
+          SendEvent("quit", m);
         }
 
 	virtual EModRet OnTimerAutoJoin(CChan& Channel) {
@@ -119,44 +188,39 @@ public:
         }
 
 	virtual void OnJoin(const CNick& Nick, CChan& Channel) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["user"] = Nick.GetNickMask();
+          m["channel"] = Channel.GetName();
+          if (Nick.GetNickMask() == GetUser()->GetIRCNick().GetNickMask())
+            m["self"] = "true";
+
+          SendEvent("join", m);
         }
 
 	virtual void OnPart(const CNick& Nick, CChan& Channel, const CString& sMessage) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["user"] = Nick.GetNickMask();
+          m["channel"] = Channel.GetName();
+          m["msg"] = sMessage;
+          if (Nick.GetNickMask() == GetUser()->GetIRCNick().GetNickMask())
+            m["self"] = "true";
+
+          SendEvent("part", m);
         }
 
 	virtual void OnNick(const CNick& OldNick, const CString& sNewNick, const vector<CChan*>& vChans) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["old"] = OldNick.GetNickMask();
+          m["new"] = sNewNick;
+          m["channels"] = ChanList(vChans);
+          SendEvent("nick", m);
 	}
 
 	virtual void OnRawMode(const CNick& OpNick, CChan& Channel, const CString& sModes, const CString& sArgs) {
         }
-
-	virtual EModRet OnRaw(CString& sLine) {
-		return CONTINUE;
-        }
-
-	virtual EModRet OnUserRaw(CString& sLine) {
-		return CONTINUE;
-	}
-
-	virtual EModRet OnUserCTCPReply(CString& sTarget, CString& sMessage) {
-		return CONTINUE;
-	}
-
-	virtual EModRet OnCTCPReply(CNick& Nick, CString& sMessage) {
-		return CONTINUE;
-	}
-
-	virtual EModRet OnUserCTCP(CString& sTarget, CString& sMessage) {
-		return CONTINUE;
-	}
-
-	virtual EModRet OnPrivCTCP(CNick& Nick, CString& sMessage) {
-		return CONTINUE;
-	}
-
-	virtual EModRet OnChanCTCP(CNick& Nick, CChan& Channel, CString& sMessage) {
-		return CONTINUE;
-	}
 
 	virtual EModRet OnUserNotice(CString& sTarget, CString& sMessage) {
 		return CONTINUE;
@@ -171,31 +235,103 @@ public:
 	}
 
 	virtual EModRet OnTopic(CNick& Nick, CChan& Channel, CString& sTopic) {
-		return CONTINUE;
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["nick"] = Nick.GetNickMask();
+          m["channel"] = Channel.GetName();
+          m["topic"] = sTopic;
+          SendEvent("topic", m);
+          return CONTINUE;
 	}
 
 	virtual EModRet OnUserTopic(CString& sTarget, CString& sTopic) {
-		return CONTINUE;
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["nick"] = GetUser()->GetCurNick();
+          m["self"] = "true";
+          m["channel"] = sTarget;
+          m["topic"] = sTopic;
+          SendEvent("topic", m);
+          return CONTINUE;
 	}
 
 	virtual EModRet OnUserMsg(CString& sTarget, CString& sMessage) {
-		return CONTINUE;
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["msg"] = sMessage;
+          m["self"] = "true";
+
+          if (GetUser()->IsChan(sTarget)) {
+            m["channel"] = sTarget;
+            SendEvent("chanmsg", m);
+          }
+          else {
+            m["user"] = sTarget;
+            SendEvent("privmsg", m);
+          }
+
+          return CONTINUE;
+	}
+
+	virtual EModRet OnUserAction(CString& sTarget, CString& sMessage) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["msg"] = sMessage;
+          m["self"] = "true";
+          m["action"] = "true";
+
+          if (GetUser()->IsChan(sTarget)) {
+            m["channel"] = sTarget;
+            SendEvent("chanmsg", m);
+          }
+          else {
+            m["user"] = sTarget;
+            SendEvent("privmsg", m);
+          }
+
+          return CONTINUE;
 	}
 
 	virtual EModRet OnPrivMsg(CNick& Nick, CString& sMessage) {
-		return CONTINUE;
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["user"] = Nick.GetNickMask();
+          m["msg"] = sMessage;
+          SendEvent("privmsg", m);
+          return CONTINUE;
+	}
+
+	virtual EModRet OnPrivAction(CNick& Nick, CString& sMessage) {
+          EventMap m;
+          m["server"] = GetUser()->GetIRCServer();
+          m["user"] = Nick.GetNickMask();
+          m["action"] = "true";
+          m["msg"] = sMessage;
+          SendEvent("privmsg", m);
+          return CONTINUE;
 	}
 
 	virtual EModRet OnChanMsg(CNick& Nick, CChan& Channel, CString& sMessage) {
-          SendEvent("chanmsg", GetUser()->GetIRCServer() + ", " + Nick.GetNickMask() + ", " + Channel.GetName() + ", " + sMessage);
-		return CONTINUE;
+          EventMap m;
+          //TODO: not sure this is right.
+          m["server"] = GetUser()->GetIRCServer();
+          m["user"] = Nick.GetNickMask();
+          m["channel"] = Channel.GetName();
+          m["msg"] = sMessage;
+          SendEvent("chanmsg", m);
+          return CONTINUE;
 	}
 
-	virtual void OnModCommand(const CString& sCommand) {
-	}
-
-	virtual EModRet OnStatusCommand(CString& sCommand) {
-		return CONTINUE;
+	virtual EModRet OnChanAction(CNick& Nick, CChan& Channel, CString& sMessage) {
+          EventMap m;
+          //TODO: not sure this is right.
+          m["server"] = GetUser()->GetIRCServer();
+          m["user"] = Nick.GetNickMask();
+          m["action"] = "true";
+          m["channel"] = Channel.GetName();
+          m["msg"] = sMessage;
+          SendEvent("chanmsg", m);
+          return CONTINUE;
 	}
 
   void RemoveSocket(CEventSock* sock) {
@@ -229,8 +365,14 @@ public:
                   if (user->IsIRCConnected()) {
                     const vector<CServer*>& servers = user->GetServers();
                     for (unsigned int i = 0; i < servers.size(); i++) {
-                      CTemplate& l = Tmpl.AddRow("ServerLoop");
-                      l["Server"] = servers[i]->GetName();
+                      CTemplate& s = Tmpl.AddRow("ServerLoop");
+                      s["Name"] = servers[i]->GetName();
+                      
+                    }
+                    const vector<CChan*>& channels = user->GetChans();
+                    for (unsigned int i = 0; i < channels.size(); i++) {
+                      CTemplate& c = Tmpl.AddRow("ChannelLoop");
+                      c["Name"] = channels[i]->GetName();
                     }
                   }
                   return true;

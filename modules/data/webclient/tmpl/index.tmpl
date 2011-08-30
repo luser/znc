@@ -6,7 +6,13 @@
 var nick = "<? VAR Nick ?>";
 var servers = [
 <?LOOP ServerLoop ?>
-"<? VAR Server ?>",
+"<? VAR Name ?>",
+<?ENDLOOP?>
+];
+var channels= [
+<?LOOP ChannelLoop ?>
+{name: "<? VAR Name ?>",
+},
 <?ENDLOOP?>
 ];
 </script>
