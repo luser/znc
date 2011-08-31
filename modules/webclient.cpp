@@ -29,7 +29,10 @@ class CEventSock : public CSocket {
 public:
   CEventSock(CWebClientMod* pModule);
   ~CEventSock() { Cleanup(); }
-  virtual void SockError(int iErrno) { Cleanup(); }
+  virtual void Disconnected() {
+    DEBUG("CEventSock closed");
+    Cleanup();
+  }
 
 private:
   void Cleanup();
@@ -60,14 +63,12 @@ private:
   EventList m_events;
 
   void SendEvent(const CString& event, const EventMap& data) {
-    if (m_sockets.size() == 0)
-      return;
-
     stringstream s;
     s << "event: " << event << "\n"
       << "id: " << m_nextID << "\n"
       << "data: {";
-    // Horrible JSON serialization;
+    // Horrible JSON serialization
+    // TODO: timestamps
     size_t count = data.size();
     for (EventMap::const_iterator it = data.begin();
          it != data.end();
@@ -350,7 +351,33 @@ public:
           WebSock.AddHeader("Cache-Control", "no-cache");
           WebSock.PrintHeader(0, "text/event-stream");
 
+          CString lastIDHeader = WebSock.GetRequestHeader("Last-Event-ID");
+          if (!lastIDHeader.empty()) {
+            DEBUG("lastID: " << lastIDHeader);
+            unsigned int lastID = lastIDHeader.ToUInt();
+            // See if we have any buffered events.
+            if (!m_events.empty() && m_events.back().first >= lastID) {
+              for (EventList::const_iterator it = m_events.begin();
+                   it != m_events.end();
+                   it++) {
+                if (it->first <= lastID)
+                  continue;
+                DEBUG("Sending queued event " << it->first);
+                WebSock.Write(it->second);
+              }
+            }
+            else {
+              if (m_events.empty()) {
+                DEBUG("Event queue empty");
+              }
+              else if (m_events.back().first > lastID) {
+                DEBUG("No pending events: " << m_events.back().first << " > " << lastID);
+              }
+            }
+          }
+
           CEventSock* sock = new CEventSock(this);
+          sock->SetTimeout(5);
           CZNC::Get().GetManager().SwapSockByAddr(sock, &WebSock);
           sock->SetSockName("WebClient::Events");
           m_sockets.push_back(sock);
