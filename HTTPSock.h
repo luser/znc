@@ -69,6 +69,7 @@ public:
 	const CString& GetUser() const;
 	const CString& GetPass() const;
 	const CString& GetParamString() const;
+        const CString& GetRequestHeader(const CString& sHeader) const;
 	const CString& GetContentType() const;
 	bool IsPost() const;
 	// !Getters
@@ -108,6 +109,7 @@ protected:
 	MCString                 m_msHeaders;
 	bool                     m_bHTTP10Client;
 	CString                  m_sIfNoneMatch;
+        MCString                 m_msRequestHeaders;
 	MCString                 m_msRequestCookies;
 	MCString                 m_msResponseCookies;
 };

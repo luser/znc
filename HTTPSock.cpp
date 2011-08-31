@@ -93,41 +93,48 @@ void CHTTPSock::ReadLine(const CString& sData) {
 		m_bPost = true;
 		m_sURI = sLine.Token(1);
 		ParseURI();
-	} else if (sName.Equals("Cookie:")) {
-		VCString vsNV;
+	} else if (!sLine.empty()) {
+          CString sValue = sLine.Right(sLine.size() - sName.size());
+          sValue.TrimLeft();
+          sName.TrimRight(":");
+          m_msRequestHeaders[sName] = sValue;
+          
+          if (sName.Equals("Cookie")) {
+            VCString vsNV;
 
-		sLine.Token(1, true).Split(";", vsNV, false, "", "", true, true);
+            sLine.Token(1, true).Split(";", vsNV, false, "", "", true, true);
 
-		for (unsigned int a = 0; a < vsNV.size(); a++) {
-			CString s(vsNV[a]);
+            for (unsigned int a = 0; a < vsNV.size(); a++) {
+              CString s(vsNV[a]);
 
-			m_msRequestCookies[s.Token(0, false, "=").Escape_n(CString::EURL, CString::EASCII)] =
-				s.Token(1, true, "=").Escape_n(CString::EURL, CString::EASCII);
-		}
-	} else if (sName.Equals("Authorization:")) {
-		CString sUnhashed;
-		sLine.Token(2).Base64Decode(sUnhashed);
-		m_sUser = sUnhashed.Token(0, false, ":");
-		m_sPass = sUnhashed.Token(1, true, ":");
-		m_bLoggedIn = OnLogin(m_sUser, m_sPass);
-	} else if (sName.Equals("Content-Length:")) {
-		m_uPostLen = sLine.Token(1).ToULong();
-		if (m_uPostLen > MAX_POST_SIZE)
-			PrintErrorPage(413, "Request Entity Too Large", "The request you sent was too large.");
-	} else if (sName.Equals("If-None-Match:")) {
-		// this is for proper client cache support (HTTP 304) on static files:
-		m_sIfNoneMatch = sLine.Token(1, true);
-	} else if (sLine.empty()) {
-		m_bGotHeader = true;
+              m_msRequestCookies[s.Token(0, false, "=").Escape_n(CString::EURL, CString::EASCII)] =
+                s.Token(1, true, "=").Escape_n(CString::EURL, CString::EASCII);
+            }
+          } else if (sName.Equals("Authorization")) {
+            CString sUnhashed;
+            sLine.Token(2).Base64Decode(sUnhashed);
+            m_sUser = sUnhashed.Token(0, false, ":");
+            m_sPass = sUnhashed.Token(1, true, ":");
+            m_bLoggedIn = OnLogin(m_sUser, m_sPass);
+          } else if (sName.Equals("Content-Length")) {
+            m_uPostLen = sLine.Token(1).ToULong();
+            if (m_uPostLen > MAX_POST_SIZE)
+              PrintErrorPage(413, "Request Entity Too Large", "The request you sent was too large.");
+          } else if (sName.Equals("If-None-Match")) {
+            // this is for proper client cache support (HTTP 304) on static files:
+            m_sIfNoneMatch = sLine.Token(1, true);
+          }
+        } else { // sLine.empty()
+          m_bGotHeader = true;
 
-		if (m_bPost) {
-			m_sPostData = GetInternalReadBuffer();
-			CheckPost();
-		} else {
-			GetPage();
-		}
+          if (m_bPost) {
+            m_sPostData = GetInternalReadBuffer();
+            CheckPost();
+          } else {
+            GetPage();
+          }
 
-		DisableReadLine();
+          DisableReadLine();
 	}
 }
 
@@ -312,6 +319,12 @@ const CString& CHTTPSock::GetPass() const {
 
 const CString& CHTTPSock::GetContentType() const {
 	return m_sContentType;
+}
+
+const CString& CHTTPSock::GetRequestHeader(const CString& sHeader) const {
+	MCString::const_iterator it = m_msRequestHeaders.find(sHeader);
+
+	return it != m_msRequestHeaders.end() ? it->second : "";
 }
 
 const CString& CHTTPSock::GetParamString() const {
