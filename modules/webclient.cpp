@@ -8,6 +8,7 @@
 
 #include "Chan.h"
 #include "HTTPSock.h"
+#include "IRCNetwork.h"
 #include "Server.h"
 #include "Template.h"
 #include "User.h"
@@ -127,7 +128,7 @@ public:
 
 	virtual void OnOp(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["op"] = OpNick.GetNickMask();
           m["nick"] = Nick.GetNickMask();
           m["opped"] = "true";
@@ -137,7 +138,7 @@ public:
 
 	virtual void OnDeop(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["op"] = OpNick.GetNickMask();
           m["nick"] = Nick.GetNickMask();
           m["opped"] = "false";
@@ -147,7 +148,7 @@ public:
 
 	virtual void OnVoice(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["op"] = OpNick.GetNickMask();
           m["nick"] = Nick.GetNickMask();
           m["voiced"] = "true";
@@ -157,7 +158,7 @@ public:
 
 	virtual void OnDevoice(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["op"] = OpNick.GetNickMask();
           m["nick"] = Nick.GetNickMask();
           m["voiced"] = "false";
@@ -167,7 +168,7 @@ public:
 
 	virtual void OnKick(const CNick& OpNick, const CString& sKickedNick, CChan& Channel, const CString& sMessage) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["op"] = OpNick.GetNickMask();
           m["nick"] = sKickedNick;
           m["channel"] = Channel.GetName();
@@ -177,7 +178,7 @@ public:
 
 	virtual void OnQuit(const CNick& Nick, const CString& sMessage, const vector<CChan*>& vChans) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["user"] = Nick.GetNickMask();
           m["channels"] = ChanList(vChans);
           m["msg"] = sMessage;
@@ -190,10 +191,10 @@ public:
 
 	virtual void OnJoin(const CNick& Nick, CChan& Channel) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["user"] = Nick.GetNickMask();
           m["channel"] = Channel.GetName();
-          if (Nick.GetNickMask() == GetUser()->GetIRCNick().GetNickMask())
+          if (Nick.GetNickMask() == m_pNetwork->GetIRCNick().GetNickMask())
             m["self"] = "true";
 
           SendEvent("join", m);
@@ -201,11 +202,11 @@ public:
 
 	virtual void OnPart(const CNick& Nick, CChan& Channel, const CString& sMessage) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["user"] = Nick.GetNickMask();
           m["channel"] = Channel.GetName();
           m["msg"] = sMessage;
-          if (Nick.GetNickMask() == GetUser()->GetIRCNick().GetNickMask())
+          if (Nick.GetNickMask() == m_pNetwork->GetIRCNick().GetNickMask())
             m["self"] = "true";
 
           SendEvent("part", m);
@@ -213,7 +214,7 @@ public:
 
 	virtual void OnNick(const CNick& OldNick, const CString& sNewNick, const vector<CChan*>& vChans) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["old"] = OldNick.GetNickMask();
           m["new"] = sNewNick;
           m["channels"] = ChanList(vChans);
@@ -237,7 +238,7 @@ public:
 
 	virtual EModRet OnTopic(CNick& Nick, CChan& Channel, CString& sTopic) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["nick"] = Nick.GetNickMask();
           m["channel"] = Channel.GetName();
           m["topic"] = sTopic;
@@ -247,8 +248,8 @@ public:
 
 	virtual EModRet OnUserTopic(CString& sTarget, CString& sTopic) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
-          m["nick"] = GetUser()->GetCurNick();
+          m["network"] = m_pNetwork->GetName();
+          m["nick"] = m_pNetwork->GetCurNick();
           m["self"] = "true";
           m["channel"] = sTarget;
           m["topic"] = sTopic;
@@ -258,11 +259,11 @@ public:
 
 	virtual EModRet OnUserMsg(CString& sTarget, CString& sMessage) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["msg"] = sMessage;
           m["self"] = "true";
 
-          if (GetUser()->IsChan(sTarget)) {
+          if (m_pNetwork->IsChan(sTarget)) {
             m["channel"] = sTarget;
             SendEvent("chanmsg", m);
           }
@@ -276,12 +277,12 @@ public:
 
 	virtual EModRet OnUserAction(CString& sTarget, CString& sMessage) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["msg"] = sMessage;
           m["self"] = "true";
           m["action"] = "true";
 
-          if (GetUser()->IsChan(sTarget)) {
+          if (m_pNetwork->IsChan(sTarget)) {
             m["channel"] = sTarget;
             SendEvent("chanmsg", m);
           }
@@ -295,7 +296,7 @@ public:
 
 	virtual EModRet OnPrivMsg(CNick& Nick, CString& sMessage) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["user"] = Nick.GetNickMask();
           m["msg"] = sMessage;
           SendEvent("privmsg", m);
@@ -304,7 +305,7 @@ public:
 
 	virtual EModRet OnPrivAction(CNick& Nick, CString& sMessage) {
           EventMap m;
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["user"] = Nick.GetNickMask();
           m["action"] = "true";
           m["msg"] = sMessage;
@@ -315,7 +316,7 @@ public:
 	virtual EModRet OnChanMsg(CNick& Nick, CChan& Channel, CString& sMessage) {
           EventMap m;
           //TODO: not sure this is right.
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["user"] = Nick.GetNickMask();
           m["channel"] = Channel.GetName();
           m["msg"] = sMessage;
@@ -325,8 +326,7 @@ public:
 
 	virtual EModRet OnChanAction(CNick& Nick, CChan& Channel, CString& sMessage) {
           EventMap m;
-          //TODO: not sure this is right.
-          m["server"] = GetUser()->GetIRCServer();
+          m["network"] = m_pNetwork->GetName();
           m["user"] = Nick.GetNickMask();
           m["action"] = "true";
           m["channel"] = Channel.GetName();
@@ -388,23 +388,20 @@ public:
 		if (sPageName == "index") {
                   //TODO: send existing user info/channel etc
                   CUser* user = GetUser();
-                  Tmpl["Nick"] = user->GetCurNick();
-                  if (user->IsIRCConnected()) {
-                    const vector<CServer*>& servers = user->GetServers();
-                    for (unsigned int i = 0; i < servers.size(); i++) {
-                      CTemplate& s = Tmpl.AddRow("ServerLoop");
-                      s["Name"] = servers[i]->GetName();
-                      
-                    }
-                    const vector<CChan*>& channels = user->GetChans();
-                    for (unsigned int i = 0; i < channels.size(); i++) {
-                      CTemplate& c = Tmpl.AddRow("ChannelLoop");
-                      c["Name"] = channels[i]->GetName();
+                  const vector<CIRCNetwork*>& networks = user->GetNetworks();
+                  for (unsigned int i = 0; i < networks.size(); i++) {
+                    CTemplate& n = Tmpl.AddRow("NetworkLoop");
+                    n["Name"] = networks[i]->GetName();
+                    n["Nick"] = networks[i]->GetCurNick();
+
+                    const vector<CChan*>& channels = networks[i]->GetChans();
+                    for (unsigned int j = 0; j < channels.size(); j++) {
+                      CTemplate& c = n.AddRow("ChannelLoop");
+                      c["Name"] = channels[j]->GetName();
                     }
                   }
                   return true;
-		}
-
+                }
 		return false;
 	}
 };

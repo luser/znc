@@ -4,15 +4,15 @@
 <script type="text/javascript" src="/modfiles/webclient/events.js"></script>
 <script type="text/javascript">
 var nick = "<? VAR Nick ?>";
-var servers = [
-<?LOOP ServerLoop ?>
-"<? VAR Name ?>",
-<?ENDLOOP?>
-];
-var channels= [
+var networks = [
+<?LOOP NetworkLoop ?>
+{"name": "<? VAR Name ?>",
+"channels": [
 <?LOOP ChannelLoop ?>
 {name: "<? VAR Name ?>",
 },
+<?ENDLOOP?>
+]},
 <?ENDLOOP?>
 ];
 </script>
