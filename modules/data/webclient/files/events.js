@@ -1,44 +1,60 @@
 var source = new EventSource("events");
-source.addEventListener("message", function(e) {
-                          document.getElementById("d").innerHTML += e.data + "<br>";
-                        });
 
-source.addEventListener("chanmsg", function(e) {
-                          document.getElementById("d").innerHTML += "chanmsg: " + e.data + "<br>";
-                        });
+function makeEventListener(f) {
+  return function (e) {
+    f(JSON.parse(e.data));
+  };
+}
 
-source.addEventListener("privmsg", function(e) {
-                          document.getElementById("d").innerHTML += "privmsg: " + e.data + "<br>";
-                        });
+source.addEventListener("message", makeEventListener(function(data) {
+                          //document.getElementById("d").innerHTML += e.data + "<br>";
+                        }));
 
-source.addEventListener("op", function(e) {
-                          document.getElementById("d").innerHTML += "op: " + e.data + "<br>";
-                        });
+source.addEventListener("chanmsg", 
+                        makeEventListener(
+                          function(data) {
+                            var n = networks[data.network];
+                            var c = n.channels[data.channel];
+                            //console.log("chanmsg: " + n + ", " + c);
+                            c.OnMessage(data.user, data.msg, data.action, data.self);
+                            updateChannel(c, n);
+                          }));
 
-source.addEventListener("voice", function(e) {
-                          document.getElementById("d").innerHTML += "voice: " + e.data + "<br>";
-                        });
+source.addEventListener("privmsg",
+                        makeEventListener(
+                          function(data) {
+                            networks[data.network].OnPrivmsg(data.user, data.msg,
+                                                             data.action, data.self);
+                          }));
 
-source.addEventListener("kick", function(e) {
-                          document.getElementById("d").innerHTML += "kick: " + e.data + "<br>";
-                        });
+source.addEventListener("op", makeEventListener(function(data) {
 
-source.addEventListener("quit", function(e) {
-                          document.getElementById("d").innerHTML += "quit: " + e.data + "<br>";
-                        });
+                        }));
 
-source.addEventListener("join", function(e) {
-                          document.getElementById("d").innerHTML += "join: " + e.data + "<br>";
-                        });
+source.addEventListener("voice", makeEventListener(function(data) {
 
-source.addEventListener("part", function(e) {
-                          document.getElementById("d").innerHTML += "part: " + e.data + "<br>";
-                        });
+                        }));
 
-source.addEventListener("nick", function(e) {
-                          document.getElementById("d").innerHTML += "nick: " + e.data + "<br>";
-                        });
+source.addEventListener("kick", makeEventListener(function(data) {
 
-source.addEventListener("topic", function(e) {
-                          document.getElementById("d").innerHTML += "topic: " + e.data + "<br>";
-                        });
+                        }));
+
+source.addEventListener("quit", makeEventListener(function(data) {
+
+                        }));
+
+source.addEventListener("join", makeEventListener(function(data) {
+
+                        }));
+
+source.addEventListener("part", makeEventListener(function(data) {
+
+                        }));
+
+source.addEventListener("nick", makeEventListener(function(data) {
+
+                        }));
+
+source.addEventListener("topic", makeEventListener(function(data) {
+
+                        }));

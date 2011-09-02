@@ -265,6 +265,7 @@ public:
 
           if (m_pNetwork->IsChan(sTarget)) {
             m["channel"] = sTarget;
+            m["user"] = m_pNetwork->GetCurNick();
             SendEvent("chanmsg", m);
           }
           else {
@@ -284,6 +285,7 @@ public:
 
           if (m_pNetwork->IsChan(sTarget)) {
             m["channel"] = sTarget;
+            m["user"] = m_pNetwork->GetCurNick();
             SendEvent("chanmsg", m);
           }
           else {
@@ -315,7 +317,6 @@ public:
 
 	virtual EModRet OnChanMsg(CNick& Nick, CChan& Channel, CString& sMessage) {
           EventMap m;
-          //TODO: not sure this is right.
           m["network"] = m_pNetwork->GetName();
           m["user"] = Nick.GetNickMask();
           m["channel"] = Channel.GetName();
@@ -391,13 +392,13 @@ public:
                   const vector<CIRCNetwork*>& networks = user->GetNetworks();
                   for (unsigned int i = 0; i < networks.size(); i++) {
                     CTemplate& n = Tmpl.AddRow("NetworkLoop");
-                    n["Name"] = networks[i]->GetName();
+                    n["Network"] = networks[i]->GetName();
                     n["Nick"] = networks[i]->GetCurNick();
 
                     const vector<CChan*>& channels = networks[i]->GetChans();
                     for (unsigned int j = 0; j < channels.size(); j++) {
                       CTemplate& c = n.AddRow("ChannelLoop");
-                      c["Name"] = channels[j]->GetName();
+                      c["Channel"] = channels[j]->GetName();
                     }
                   }
                   return true;

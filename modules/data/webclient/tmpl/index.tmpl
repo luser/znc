@@ -1,23 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head><title>webclient</title>
+<link rel="stylesheet" type="text/css" href="/modfiles/webclient/style.css">
+<script type="text/javascript" src="/modfiles/webclient/jquery.min.js"></script>
 <script type="text/javascript" src="/modfiles/webclient/events.js"></script>
+<script type="text/javascript" src="/modfiles/webclient/irc.js"></script>
+<script type="text/javascript" src="/modfiles/webclient/view.js"></script>
 <script type="text/javascript">
-var nick = "<? VAR Nick ?>";
-var networks = [
+var networks = {
 <?LOOP NetworkLoop ?>
-{"name": "<? VAR Name ?>",
-"channels": [
+"<? VAR Network ?>": new IRCNetwork("<? VAR Network ?>", "<? VAR Nick?>", [
 <?LOOP ChannelLoop ?>
-{name: "<? VAR Name ?>",
-},
+new Channel("<? VAR Channel ?>"),
 <?ENDLOOP?>
-]},
+]),
 <?ENDLOOP?>
-];
+};
 </script>
 </head>
-<body><h1>webclient</h1>
-<div id="d"></div>
+<body>
+<div id="tabs">
+</div>
 </body>
 </html>
