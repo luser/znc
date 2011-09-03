@@ -16,10 +16,15 @@ new Channel("<? VAR Channel ?>"),
 ]),
 <?ENDLOOP?>
 };
+for (n in networks) {
+  activenetwork = networks[n];
+  break;
+}
 </script>
 </head>
 <body>
 <div id="tabs">
 </div>
+<input type="text" id="chatinput"></input>
 </body>
 </html>

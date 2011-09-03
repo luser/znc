@@ -10,6 +10,10 @@ html, body {
     display: block;
 }
 
+#chatinput {
+    width: 100%;
+}
+
 #tabs section {
     float: left;
     z-index: 1;
@@ -39,10 +43,17 @@ html, body {
     display: none;
     padding: 0 10px;
     font: 12px Arial;
+    overflow: auto;
 }
 
 #tabs section.current div {
     display: block;
+}
+
+section ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
 section li {

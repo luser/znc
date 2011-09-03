@@ -69,16 +69,13 @@ private:
       << "id: " << m_nextID << "\n"
       << "data: {";
     // Horrible JSON serialization
-    // TODO: timestamps
-    size_t count = data.size();
     for (EventMap::const_iterator it = data.begin();
          it != data.end();
-         it++, count--) {
+         it++) {
       s << "\"" << it->first.Replace_n("\"", "\\\"")
-        << "\": \""<< it->second.Replace_n("\"", "\\\"") << "\"";
-      if (count > 1)
-        s << ",";
+        << "\": \""<< it->second.Replace_n("\"", "\\\"") << "\", ";
     }
+    s << "\"timestamp\": " << time(NULL);
     s << "}\n\n";
 
     m_events.push_back(make_pair(m_nextID, s.str()));
@@ -129,8 +126,8 @@ public:
 	virtual void OnOp(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["op"] = OpNick.GetNickMask();
-          m["nick"] = Nick.GetNickMask();
+          m["op"] = OpNick.GetNick();
+          m["user"] = Nick.GetNick();
           m["opped"] = "true";
           m["channel"] = Channel.GetName();
           SendEvent("op", m);
@@ -139,8 +136,8 @@ public:
 	virtual void OnDeop(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["op"] = OpNick.GetNickMask();
-          m["nick"] = Nick.GetNickMask();
+          m["op"] = OpNick.GetNick();
+          m["user"] = Nick.GetNick();
           m["opped"] = "false";
           m["channel"] = Channel.GetName();
           SendEvent("op", m);
@@ -149,8 +146,8 @@ public:
 	virtual void OnVoice(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["op"] = OpNick.GetNickMask();
-          m["nick"] = Nick.GetNickMask();
+          m["op"] = OpNick.GetNick();
+          m["user"] = Nick.GetNick();
           m["voiced"] = "true";
           m["channel"] = Channel.GetName();
           SendEvent("voice", m);
@@ -159,8 +156,8 @@ public:
 	virtual void OnDevoice(const CNick& OpNick, const CNick& Nick, CChan& Channel, bool bNoChange) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["op"] = OpNick.GetNickMask();
-          m["nick"] = Nick.GetNickMask();
+          m["op"] = OpNick.GetNick();
+          m["user"] = Nick.GetNick();
           m["voiced"] = "false";
           m["channel"] = Channel.GetName();
           SendEvent("voice", m);
@@ -169,8 +166,8 @@ public:
 	virtual void OnKick(const CNick& OpNick, const CString& sKickedNick, CChan& Channel, const CString& sMessage) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["op"] = OpNick.GetNickMask();
-          m["nick"] = sKickedNick;
+          m["op"] = OpNick.GetNick();
+          m["user"] = sKickedNick;
           m["channel"] = Channel.GetName();
           m["msg"] = sMessage;
           SendEvent("kick", m);
@@ -179,7 +176,8 @@ public:
 	virtual void OnQuit(const CNick& Nick, const CString& sMessage, const vector<CChan*>& vChans) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["user"] = Nick.GetNickMask();
+          m["user"] = Nick.GetNick();
+          m["mask"] = Nick.GetNickMask();
           m["channels"] = ChanList(vChans);
           m["msg"] = sMessage;
           SendEvent("quit", m);
@@ -192,10 +190,13 @@ public:
 	virtual void OnJoin(const CNick& Nick, CChan& Channel) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["user"] = Nick.GetNickMask();
+          m["user"] = Nick.GetNick();
+          m["mask"] = Nick.GetNickMask();
           m["channel"] = Channel.GetName();
-          if (Nick.GetNickMask() == m_pNetwork->GetIRCNick().GetNickMask())
+          if (Nick.GetNickMask() == m_pNetwork->GetIRCNick().GetNickMask()) {
             m["self"] = "true";
+            m["topic"] = Channel.GetTopic();
+          }
 
           SendEvent("join", m);
         }
@@ -203,7 +204,8 @@ public:
 	virtual void OnPart(const CNick& Nick, CChan& Channel, const CString& sMessage) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["user"] = Nick.GetNickMask();
+          m["user"] = Nick.GetNick();
+          m["mask"] = Nick.GetNickMask();
           m["channel"] = Channel.GetName();
           m["msg"] = sMessage;
           if (Nick.GetNickMask() == m_pNetwork->GetIRCNick().GetNickMask())
@@ -215,7 +217,7 @@ public:
 	virtual void OnNick(const CNick& OldNick, const CString& sNewNick, const vector<CChan*>& vChans) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["old"] = OldNick.GetNickMask();
+          m["old"] = OldNick.GetNick();
           m["new"] = sNewNick;
           m["channels"] = ChanList(vChans);
           SendEvent("nick", m);
@@ -239,7 +241,7 @@ public:
 	virtual EModRet OnTopic(CNick& Nick, CChan& Channel, CString& sTopic) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["nick"] = Nick.GetNickMask();
+          m["user"] = Nick.GetNick();
           m["channel"] = Channel.GetName();
           m["topic"] = sTopic;
           SendEvent("topic", m);
@@ -249,7 +251,7 @@ public:
 	virtual EModRet OnUserTopic(CString& sTarget, CString& sTopic) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["nick"] = m_pNetwork->GetCurNick();
+          m["user"] = m_pNetwork->GetCurNick();
           m["self"] = "true";
           m["channel"] = sTarget;
           m["topic"] = sTopic;
@@ -299,7 +301,8 @@ public:
 	virtual EModRet OnPrivMsg(CNick& Nick, CString& sMessage) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["user"] = Nick.GetNickMask();
+          m["user"] = Nick.GetNick();
+          m["mask"] = Nick.GetNickMask();
           m["msg"] = sMessage;
           SendEvent("privmsg", m);
           return CONTINUE;
@@ -308,7 +311,8 @@ public:
 	virtual EModRet OnPrivAction(CNick& Nick, CString& sMessage) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["user"] = Nick.GetNickMask();
+          m["user"] = Nick.GetNick();
+          m["mask"] = Nick.GetNickMask();
           m["action"] = "true";
           m["msg"] = sMessage;
           SendEvent("privmsg", m);
@@ -318,7 +322,7 @@ public:
 	virtual EModRet OnChanMsg(CNick& Nick, CChan& Channel, CString& sMessage) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["user"] = Nick.GetNickMask();
+          m["user"] = Nick.GetNick();
           m["channel"] = Channel.GetName();
           m["msg"] = sMessage;
           SendEvent("chanmsg", m);
@@ -328,7 +332,7 @@ public:
 	virtual EModRet OnChanAction(CNick& Nick, CChan& Channel, CString& sMessage) {
           EventMap m;
           m["network"] = m_pNetwork->GetName();
-          m["user"] = Nick.GetNickMask();
+          m["user"] = Nick.GetNick();
           m["action"] = "true";
           m["channel"] = Channel.GetName();
           m["msg"] = sMessage;
