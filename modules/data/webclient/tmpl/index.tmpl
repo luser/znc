@@ -11,7 +11,7 @@ var networks = {
 <?LOOP NetworkLoop ?>
 "<? VAR Network ?>": new IRCNetwork("<? VAR Network ?>", "<? VAR Nick?>", [
 <?LOOP ChannelLoop ?>
-new Channel("<? VAR Channel ?>"),
+new Channel("<? VAR Channel ?>", "<? VAR Topic ?>", "<? VAR Nicks?>"),
 <?ENDLOOP?>
 ]),
 <?ENDLOOP?>

@@ -51,14 +51,29 @@ static CString ChanList(const vector<CChan*>& vChans) {
   return s;
 }
 
-const unsigned int kMaxEventQueue = 50;
+static CString NickList(const map<CString,CNick>& nicks) {
+  CString nicklist = "";
+  size_t size = nicks.size() - 1;
+  for (map<CString,CNick>::const_iterator it = nicks.begin();
+       it != nicks.end();
+       it++, size--) {
+    nicklist += it->first;
+    if (size != 0)
+      nicklist += ",";
+  }
+  return nicklist;
+}
+
+const unsigned int kMaxEventQueue = 500;
 
 class CWebClientMod : public CModule {
 private:
   typedef map<CString,CString> EventMap;
   vector<CEventSock*> m_sockets;
 
-  // Save a buffer of events in case a client gets disconnected.
+  // Save a buffer of events in case a client gets disconnected, and also
+  // for scrollback.
+  //TODO: figure out how to save unlimited scrollback...
   unsigned int m_nextID;
   typedef list<pair<unsigned int, string> > EventList;
   EventList m_events;
@@ -92,7 +107,7 @@ private:
 
 public:
 	MODCONSTRUCTOR(CWebClientMod) {
-		m_nextID = 0;
+		m_nextID = 1;
 		AddHelpCommand();
 	}
 
@@ -115,6 +130,22 @@ public:
 
 	virtual void OnIRCDisconnected() {
 	}
+
+  virtual EModRet OnRaw(CString& sLine) {
+    CString cmd = sLine.Token(1);
+    if (cmd == "366") {
+      CChan* pChan = m_pNetwork->FindChan(sLine.Token(3));
+      if (pChan) {
+        EventMap m;
+        m["network"] = m_pNetwork->GetName();
+        m["channel"] = pChan->GetName();
+        const map<CString,CNick>& nicks = pChan->GetNicks();
+        m["nicks"] = NickList(nicks);
+        SendEvent("names", m);
+      }
+    }
+    return CONTINUE;
+  }
 
 	virtual EModRet OnIRCRegistration(CString& sPass, CString& sNick, CString& sIdent, CString& sRealName) {
 		return CONTINUE;
@@ -349,35 +380,33 @@ public:
     }
   }
 
-	virtual bool OnWebPreRequest(CWebSock& WebSock, const CString& sPageName) {
-          if (sPageName != "events")
-            return false;
-
+	void EventStreamRequest(CWebSock& WebSock) {
           WebSock.AddHeader("Cache-Control", "no-cache");
           WebSock.PrintHeader(0, "text/event-stream");
 
           CString lastIDHeader = WebSock.GetRequestHeader("Last-Event-ID");
+          unsigned int lastID = 0;
           if (!lastIDHeader.empty()) {
             DEBUG("lastID: " << lastIDHeader);
-            unsigned int lastID = lastIDHeader.ToUInt();
-            // See if we have any buffered events.
-            if (!m_events.empty() && m_events.back().first >= lastID) {
-              for (EventList::const_iterator it = m_events.begin();
-                   it != m_events.end();
-                   it++) {
-                if (it->first <= lastID)
-                  continue;
-                DEBUG("Sending queued event " << it->first);
-                WebSock.Write(it->second);
-              }
+             lastID = lastIDHeader.ToUInt();
+          }
+          // See if we have any buffered events.
+          if (!m_events.empty() && m_events.back().first >= lastID) {
+            for (EventList::const_iterator it = m_events.begin();
+                 it != m_events.end();
+                 it++) {
+              if (it->first <= lastID)
+                continue;
+              DEBUG("Sending queued event " << it->first << ": " << it->second);
+              WebSock.Write(it->second);
             }
-            else {
-              if (m_events.empty()) {
-                DEBUG("Event queue empty");
-              }
-              else if (m_events.back().first > lastID) {
-                DEBUG("No pending events: " << m_events.back().first << " > " << lastID);
-              }
+          }
+          else {
+            if (m_events.empty()) {
+              DEBUG("Event queue empty");
+            }
+            else if (m_events.back().first > lastID) {
+              DEBUG("No pending events: " << m_events.back().first << " > " << lastID);
             }
           }
 
@@ -386,8 +415,16 @@ public:
           CZNC::Get().GetManager().SwapSockByAddr(sock, &WebSock);
           sock->SetSockName("WebClient::Events");
           m_sockets.push_back(sock);
-          return true;
 	}
+
+	virtual bool OnWebPreRequest(CWebSock& WebSock, const CString& sPageName) {
+          if (sPageName == "events") {
+            EventStreamRequest(WebSock);
+            return true;
+          }
+          
+          return false;
+        }
 
 	virtual bool OnWebRequest(CWebSock& WebSock, const CString& sPageName, CTemplate& Tmpl) {
 		if (sPageName == "index") {
@@ -403,6 +440,9 @@ public:
                     for (unsigned int j = 0; j < channels.size(); j++) {
                       CTemplate& c = n.AddRow("ChannelLoop");
                       c["Channel"] = channels[j]->GetName();
+                      c["Topic"] = channels[j]->GetTopic();
+                      const map<CString,CNick>& nicks = channels[j]->GetNicks();
+                      c["Nicks"] = NickList(nicks);
                     }
                   }
                   return true;

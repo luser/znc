@@ -12,11 +12,18 @@ function channelID(channel, network) {
   return channels[network.name + "-" + channel.name];
 }
 
+function buildUserList(element, channel) {
+  $.each(channel.users, function(i, u) {
+           element.append("<li>" + u);
+         });
+}
+
 function addChannel(channel, network) {
   $('#tabs section').removeClass('current');
   channels[network.name + "-" + channel.name] = "channel" + (nextChannelID++);
-  $('#tabs').append('<section id="' + channelID(channel, network) + '" class="current"><h3>' + channel.name + '</h3><div><ul></ul></div></section>');
+  $('#tabs').append('<section id="' + channelID(channel, network) + '" class="current"><h3>' + channel.name + '</h3><div><ul class="chat"></ul><ul class="users"></ul></div></section>');
   $('#tabs section.current').prop('network', network.name).prop('name', channel.name);
+  updateChannelUsers(channel, network);
 }
 
 function removeChannel(channel, network) {
@@ -39,7 +46,12 @@ function escapeText(text) {
   return $("<div/>").text(text).html();
 }
 
-function updateChannel(channel, network) {
+function updateChannelUsers(channel, network) {
+  var l = $('#' + channelID(channel, network) + ' ul.users').empty();
+  buildUserList(l, channel);
+}
+
+function updateChannel(channel, network, updatenicklist) {
   var m = channel.scrollback[channel.scrollback.length - 1];
   var content;
   var cls = "user";
@@ -79,5 +91,9 @@ function updateChannel(channel, network) {
     content = '<li class="usermode"><span class="' + cls + '">' + escapeText(m.op) + '</span> kicked <span class="user">' + user + '</span> (' + escapeText(m.msg) + ')';
   }
 
-  $('#' + channelID(channel, network) + ' ul').append(content);
+  $('#' + channelID(channel, network) + ' ul.chat').append(content);
+
+  if (updatenicklist) {
+    updateChannelUsers(channel, network);
+  }
 }

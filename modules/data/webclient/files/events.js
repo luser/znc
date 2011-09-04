@@ -87,7 +87,7 @@ source.addEventListener(
       var n = networks[data.network];
       var channels = n.OnUserQuit(data.user, data.mask, data.channels, data.msg);
       for (var i = 0; i < channels.length; i++) {
-        updateChannel(channels[i], n);
+        updateChannel(channels[i], n, true);
       }
     }));
 
@@ -96,16 +96,28 @@ source.addEventListener(
   makeEventListener(
     function(data) {
       var n = networks[data.network];
-      if (bool(data.self)) {
+      if (bool(data.self) && !(data.channel in n.channels)) {
         n.JoinedChannel(data.channel, '');
         addChannel(n.channels[data.channel], n);
         $('#tabs > section.current > h3').click(switchChannel);
+        n.channels[data.channel].OnUserJoin(data.user, data.mask);
+        updateChannel(c, n, true);
       }
       else {
         var c = n.channels[data.channel];
         n.channels[data.channel].OnUserJoin(data.user, data.mask);
-        updateChannel(c, n);
+        updateChannel(c, n, true);
       }
+    }));
+
+source.addEventListener(
+  "names",
+  makeEventListener(
+    function(data) {
+      var n = networks[data.network];
+      var c = n.channels[data.channel];
+      c.SetUsers(data.nicks);
+      updateChannelUsers(c, n);
     }));
 
 source.addEventListener(
@@ -120,7 +132,7 @@ source.addEventListener(
       else {
         var c = n.channels[data.channel];
         c.OnUserPart(data.user, data.mask, data.msg);
-        updateChannel(c, n);
+        updateChannel(c, n, true);
       }
     }));
 
@@ -131,7 +143,7 @@ source.addEventListener(
       var n = networks[data.network];
       var channels = n.OnUserNick(data.old, data.new, data.channels);
       for (var i = 0; i < channels.length; i++) {
-        updateChannel(channels[i], n);
+        updateChannel(channels[i], n, true);
       }
     }));
 

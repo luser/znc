@@ -1,7 +1,7 @@
 var activenetwork = null;
 
-function splitChanlist(chanlist) {
-  return chanlist.split(",");
+function splitlist(list) {
+  return list.split(",");
 }
 
 function IRCNetwork(name, nick, channels) {
@@ -23,7 +23,7 @@ IRCNetwork.prototype = {
   },
 
   JoinedChannel: function(channel, topic) {
-    var c = new Channel(channel, topic);
+    var c = new Channel(channel, topic, []);
     this.channels[channel] = c;
     this.activetarget = c;
   },
@@ -38,7 +38,7 @@ IRCNetwork.prototype = {
 
   OnUserQuit: function(user, mask, channels, msg) {
     var affected = [];
-    var chanlist = splitChanlist(channels);
+    var chanlist = splitlist(channels);
     for (var i = 0; i < chanlist.length; i++) {
       var c = this.channels[chanlist[i]];
       c.OnUserQuit(user, mask, msg);
@@ -49,7 +49,7 @@ IRCNetwork.prototype = {
 
   OnUserNick: function(oldNick, newNick, channels) {
     var affected = [];
-    var chanlist = splitChanlist(channels);
+    var chanlist = splitlist(channels);
     for (var i = 0; i < chanlist.length; i++) {
       var c = this.channels[chanlist[i]];
       c.OnUserNick(oldNick, newNick);
@@ -81,16 +81,20 @@ IRCNetwork.prototype = {
   }
 };
 
-function Channel(name, topic) {
+function Channel(name, topic, users) {
   this.name = name;
   this.topic = topic;
-  this.users = [];
+  this.users = users;
   this.scrollback = [];
 }
 
 Channel.prototype = {
   toString: function() {
     return "[Channel " + this.name + "]";
+  },
+
+  SetUsers: function(nicklist) {
+    this.users = splitlist(nicklist);
   },
 
   OnMessage: function(user, msg, action, self) {
