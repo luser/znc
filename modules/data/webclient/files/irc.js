@@ -1,5 +1,14 @@
 var activenetwork = null;
 
+function OnCommand(cmd, text) {
+  console.log("OnCommand(" + cmd + ", " + text + ")");
+  switch (cmd) {
+  case "me":
+    activenetwork.OnSendMessage(text, true);
+    break;
+  }
+}
+
 function splitlist(list) {
   return list.split(",");
 }
@@ -75,9 +84,9 @@ IRCNetwork.prototype = {
     }
   },
 
-  OnSendMessage: function(text) {
+  OnSendMessage: function(text, action) {
     if (this.activetarget)
-      this.activetarget.SendMessage(this, text);
+      this.activetarget.SendMessage(this, text, action);
   }
 };
 

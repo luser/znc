@@ -20,8 +20,21 @@ function switchChannel() {
 }
 
 function chatInput(event) {
-  if (event.which == 13) { // return
-    activenetwork.OnSendMessage(this.value);
+  if (event.which == 13 && this.value != "") { // return
+    if (this.value[0] == "/") {
+      var cmd = this.value;
+      var text = "";
+      var space = this.value.indexOf(" ");
+      if (space != -1) {
+        cmd = this.value.substring(1, space);
+        text = this.value.substring(space + 1);
+      }
+
+      OnCommand(cmd, text);
+    }
+    else {
+      activenetwork.OnSendMessage(this.value, false);      
+    }
     this.value = "";
   }
 }
