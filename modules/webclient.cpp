@@ -290,42 +290,33 @@ public:
           return CONTINUE;
 	}
 
+  void SendMsgEvent(CIRCNetwork& Network, const CString& sTarget, const CString& sMessage,
+                    bool action) {
+    EventMap m;
+    m["network"] = Network.GetName();
+    m["msg"] = sMessage;
+    m["self"] = "true";
+    if (action)
+      m["action"] = "true";
+
+    if (Network.IsChan(sTarget)) {
+      m["channel"] = sTarget;
+      m["user"] = Network.GetCurNick();
+      SendEvent("chanmsg", m);
+    }
+    else {
+      m["user"] = sTarget;
+      SendEvent("privmsg", m);
+    }
+  }
+
 	virtual EModRet OnUserMsg(CString& sTarget, CString& sMessage) {
-          EventMap m;
-          m["network"] = m_pNetwork->GetName();
-          m["msg"] = sMessage;
-          m["self"] = "true";
-
-          if (m_pNetwork->IsChan(sTarget)) {
-            m["channel"] = sTarget;
-            m["user"] = m_pNetwork->GetCurNick();
-            SendEvent("chanmsg", m);
-          }
-          else {
-            m["user"] = sTarget;
-            SendEvent("privmsg", m);
-          }
-
+          SendMsgEvent(*m_pNetwork, sTarget, sMessage, false);
           return CONTINUE;
 	}
 
 	virtual EModRet OnUserAction(CString& sTarget, CString& sMessage) {
-          EventMap m;
-          m["network"] = m_pNetwork->GetName();
-          m["msg"] = sMessage;
-          m["self"] = "true";
-          m["action"] = "true";
-
-          if (m_pNetwork->IsChan(sTarget)) {
-            m["channel"] = sTarget;
-            m["user"] = m_pNetwork->GetCurNick();
-            SendEvent("chanmsg", m);
-          }
-          else {
-            m["user"] = sTarget;
-            SendEvent("privmsg", m);
-          }
-
+          SendMsgEvent(*m_pNetwork, sTarget, sMessage, true);
           return CONTINUE;
 	}
 
@@ -417,10 +408,55 @@ public:
           m_sockets.push_back(sock);
 	}
 
+  void SendPrivMsg(CIRCNetwork& Network, CChan& Channel, CString& msg, bool action) {
+    SendMsgEvent(Network, Channel.GetName(), msg, action);
+    
+    if (action)
+      msg = "\001ACTION " + msg + "\001";
+    Network.PutIRC("PRIVMSG " + Channel.GetName() + " :" + msg);
+
+    // Relay to the rest of the clients that may be connected to this user
+    vector<CClient*> vClients = m_pUser->GetAllClients();
+    for (unsigned int a = 0; a < vClients.size(); a++) {
+      CClient* pClient = vClients[a];
+      pClient->PutClient(":" + pClient->GetNickMask() + " PRIVMSG " + Channel.GetName() + " :" + msg);
+    }
+  }
+
+  bool ChanmsgRequest(CWebSock& WebSock, CString& network, CString& channel) {
+    DEBUG("ChanmsgRequest: " << network << ", " << channel);
+    CIRCNetwork* Network = m_pUser->FindNetwork(network);
+    if (!Network)
+      return false;
+
+    CChan* Channel = Network->FindChan(channel);
+    if (!Channel)
+      return false;
+
+    CString msg = WebSock.GetParam("msg");
+    CString action = WebSock.GetParam("action");
+    SendPrivMsg(*Network, *Channel, msg, action == "true");
+
+    return true;
+  }
+
 	virtual bool OnWebPreRequest(CWebSock& WebSock, const CString& sPageName) {
-          if (sPageName == "events") {
+          DEBUG("OnWebPreRequest: " << sPageName);
+          VCString parts;
+          if (sPageName.Split("/", parts) == 0)
+            return false;
+
+          if (parts[0] == "events") {
             EventStreamRequest(WebSock);
             return true;
+          }
+          if (parts[0] == "chanmsg") {
+            if (parts.size() != 3)
+              return false;
+
+            //TODO: need a real decodeURIComponent
+            parts[2].Replace("%23", "#");
+            return ChanmsgRequest(WebSock, parts[1], parts[2]);
           }
           
           return false;

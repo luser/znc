@@ -77,14 +77,14 @@ IRCNetwork.prototype = {
 
   OnSendMessage: function(text) {
     if (this.activetarget)
-      this.activetarget.SendMessage(network, text);
+      this.activetarget.SendMessage(this, text);
   }
 };
 
 function Channel(name, topic, users) {
   this.name = name;
-  this.topic = topic;
-  this.users = users;
+  this.topic = topic || '';
+  this.users = users ? splitlist(users) : [];
   this.scrollback = [];
 }
 
@@ -172,6 +172,12 @@ Channel.prototype = {
                           msg: msg});
   },
 
-  SendMessage: function(network, text) {
+  SendMessage: function(network, text, action) {
+    var url = "chanmsg/" + encodeURIComponent(network.name)
+      + "/" + encodeURIComponent(this.name);
+    console.log(url);
+    $.post(url, {msg: text,
+                 action: action ? "true" : "",
+                 "_CSRF_Check": csrftoken});
   }
 };

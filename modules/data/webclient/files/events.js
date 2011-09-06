@@ -5,6 +5,7 @@ $(document).ready(function() {
                       }
                     }
                     $("#tabs > section > h3").click(switchChannel);
+                    $("#chatinput").keydown(chatInput);
                   });
 
 function bool(str) {
@@ -16,6 +17,13 @@ function switchChannel() {
   var current = $('#tabs section.current');
   activenetwork = networks[current.prop('network')];
   activenetwork.SetActiveTarget(current.prop('name'));
+}
+
+function chatInput(event) {
+  if (event.which == 13) { // return
+    activenetwork.OnSendMessage(this.value);
+    this.value = "";
+  }
 }
 
 // EventSource handling

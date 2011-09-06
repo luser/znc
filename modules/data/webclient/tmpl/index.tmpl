@@ -7,6 +7,7 @@
 <script type="text/javascript" src="/modfiles/webclient/irc.js"></script>
 <script type="text/javascript" src="/modfiles/webclient/view.js"></script>
 <script type="text/javascript">
+var csrftoken = "<?VAR _CSRF_Check ?>";
 var networks = {
 <?LOOP NetworkLoop ?>
 "<? VAR Network ?>": new IRCNetwork("<? VAR Network ?>", "<? VAR Nick?>", [
